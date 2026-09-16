@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>100までのかず 知育アプリ</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: BIZ UDPGothic -->
+    <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            /* 単一色ボタンの高さ基準 (1.2倍) */
+            --btn-h: clamp(46px, 7.2vh, 58px);
+        }
+
+        /* UD教科書体・UDフォント指定 */
+        body, button, div, span {
+            font-family: "UD デジタル 教科書体 N-R", "UD Digital Kyokasho N-R", "BIZ UDPGothic", "Hiragino Kaku Gothic ProN", sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: manipulation;
+        }
+
+        /* 画面外・背景ともに純白色 */
+        body {
+            background-color: #ffffff;
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 画面比16:9のレスポンシブコンテナ */
+        .stage-16-9 {
+            width: 100vw;
+            height: 56.25vw; /* 100 * 9 / 16 */
+            max-height: 100vh;
+            max-width: 177.78vh; /* 100 * 16 / 9 */
+            margin: auto;
+            position: absolute;
+            top: 0; bottom: 0; left: 0; right: 0;
+            background-color: #ffffff;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1.25rem;
+            box-sizing: border-box;
+        }
+
+        /* 100表の外枠とグリッド隙間の色: #C0C0B6 */
+        .board-wrapper {
+            background-color: #C0C0B6;
+            border: 2px solid #C0C0B6;
+            overflow: hidden; /* カバーシートのはみ出しを制御 */
+        }
+
+        /* 100表セルスタイル (背景色: #FEFEF4) */
+        .grid-cell {
+            aspect-ratio: 1 / 1;
+            background-color: #FEFEF4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .grid-cell-number {
+            font-weight: 700;
+            color: #111111;
+            line-height: 1;
+        }
+
+        /* 隠しパネルカバー */
+        .cell-cover {
+            position: absolute;
+            inset: 0;
+            transition: opacity 0.1s ease;
+            opacity: 0;
+            pointer-events: none;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: #ffffff;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+            font-size: min(1.6rem, 4vh);
+            line-height: 1;
+        }
+
+        .cell-cover.is-hidden {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* 立体面取りボタン */
+        .btn-ui {
+            background-color: #ffffff;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            box-shadow: 0 3px 0 #cbd5e1, 0 3px 6px rgba(0, 0, 0, 0.05);
+            transition: all 0.08s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            position: relative;
+            padding: 2px 4px;
+            box-sizing: border-box;
+        }
+
+        .btn-ui:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #cbd5e1, 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        /* 選択中ツールの強調表示 */
+        .btn-ui.active-tool {
+            border-color: #3b82f6;
+            background-color: #f0f6ff;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3), 0 3px 0 #2563eb;
+        }
+
+        /* ボタン文字の1行固定＆見切れ防止サイズ */
+        .btn-label {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
+            text-align: center;
+            line-height: 1;
+            font-size: min(10px, 1.3vh);
+            font-weight: 700;
+            color: #334155;
+            margin-top: 2px;
+        }
+
+        /* 「消しゴム」「レーザー」など小サイズ文字用 */
+        .btn-label-sm {
+            font-size: min(8.5px, 1.1vh);
+        }
+
+        /* 正方形ボタン: 一辺の長さを単一色ボタンの高さ(--btn-h)と一致させる */
+        .btn-square-custom {
+            width: var(--btn-h);
+            height: var(--btn-h);
+            min-width: var(--btn-h);
+            min-height: var(--btn-h);
+        }
+
+        /* 横長ボタンの高さ基準 */
+        .btn-h-custom {
+            height: var(--btn-h);
+            min-height: var(--btn-h);
+        }
+
+        /* 右側ボタン列の固定幅（正方形3つ分 + ギャップ） */
+        .btn-group-width {
+            width: calc(var(--btn-h) * 3 + 1rem);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="stage-16-9">
+        
+        <!-- 左側〜中央: 100表エリア -->
+        <div class="h-full flex-1 flex items-center justify-center relative min-w-0 pr-4">
+            
+            <!-- 表本体 + キャンバスの容器 -->
+            <div id="board-container" class="board-wrapper h-[98%] aspect-square rounded-lg p-0.5 relative flex items-center justify-center shadow-sm">
+                
+                <!-- 10x10 極小隙間グリッド (隙間色: #C0C0B6) -->
+                <div id="grid-100" class="w-full h-full grid grid-cols-10 grid-rows-10 gap-[1.5px] bg-[#C0C0B6] relative z-10">
+                    <!-- JSで動的にセル生成 -->
+                </div>
+
+                <!-- お絵かき・レーザーポインター用 Canvas -->
+                <canvas id="paint-canvas" class="absolute inset-0 z-20 w-full h-full pointer-events-auto touch-none"></canvas>
+            
+                <!-- 下からスワイプで出せるカバーシート (#ECECE2) -->
+                <div id="cover-sheet" class="absolute inset-x-0 bottom-0 h-full bg-[#ECECE2] z-30 flex flex-col items-center justify-start rounded-b-md shadow-lg touch-none" style="transform: translateY(calc(100% - 11px)); transition: none;">
+                    <!-- スワイプ用ハンドルバー (高さ1.2倍: 11px) -->
+                    <div id="sheet-handle" class="w-full h-[11px] flex items-center justify-center cursor-ns-resize shrink-0 bg-[#DCDCC2] hover:bg-[#D0D0B6] transition-colors rounded-t-sm">
+                        <div class="w-12 h-1.5 bg-[#8A8A80] rounded-full"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- 右側: 操作ボタンエリア (画面右上詰め) -->
+        <div class="h-full flex flex-col justify-start items-end shrink-0 pt-2 pr-2 gap-2 sm:gap-2.5">
+            
+            <!-- 行1: 「パネルの色」（単一色・複数色選択） -->
+            <div class="flex gap-2 btn-group-width items-center">
+                <button id="btn-mode-single" onclick="setPanelColorMode('single')" class="btn-ui flex-1 btn-h-custom active-tool">
+                    <div class="flex gap-1 items-center justify-center">
+                        <span class="w-[14.4px] h-[14.4px] rounded-sm" style="background-color: #ff8fa3;"></span>
+                        <span class="w-[14.4px] h-[14.4px] rounded-sm" style="background-color: #ff8fa3;"></span>
+                        <span class="w-[14.4px] h-[14.4px] rounded-sm" style="background-color: #ff8fa3;"></span>
+                    </div>
+                    <span class="btn-label">パネルの色</span>
+                </button>
+                <button id="btn-mode-multi" onclick="setPanelColorMode('multi')" class="btn-ui flex-1 btn-h-custom">
+                    <div class="flex gap-1 items-center justify-center">
+                        <span class="w-[14.4px] h-[14.4px] rounded-sm bg-red-500"></span>
+                        <span class="w-[14.4px] h-[14.4px] rounded-sm bg-yellow-400"></span>
+                        <span class="w-[14.4px] h-[14.4px] rounded-sm bg-blue-500"></span>
+                    </div>
+                    <span class="btn-label">パネルの色</span>
+                </button>
+            </div>
+
+            <!-- 行2: 「黒」「赤」「青」（単一色の縦幅と同じ一辺の面取り正方形） -->
+            <div class="flex gap-2 btn-group-width justify-between items-center">
+                <button id="btn-pen-black" onclick="setTool('pen-black')" class="btn-ui btn-square-custom">
+                    <i class="fa-solid fa-pen text-slate-800 text-sm"></i>
+                    <span class="btn-label text-slate-800">黒</span>
+                </button>
+                <button id="btn-pen-red" onclick="setTool('pen-red')" class="btn-ui btn-square-custom">
+                    <i class="fa-solid fa-pen text-red-500 text-sm"></i>
+                    <span class="btn-label text-red-600">赤</span>
+                </button>
+                <button id="btn-pen-blue" onclick="setTool('pen-blue')" class="btn-ui btn-square-custom">
+                    <i class="fa-solid fa-pen text-blue-500 text-sm"></i>
+                    <span class="btn-label text-blue-600">青</span>
+                </button>
+            </div>
+
+            <!-- 行3: 「消しゴム」「全消去」「レーザー」（単一色の縦幅と同じ一辺の面取り正方形） -->
+            <div class="flex gap-2 btn-group-width justify-between items-center">
+                <button id="btn-tool-eraser" onclick="setTool('eraser')" class="btn-ui btn-square-custom">
+                    <i class="fa-solid fa-eraser text-teal-600 text-sm"></i>
+                    <span class="btn-label btn-label-sm">消しゴム</span>
+                </button>
+                <button onclick="handleClearCanvas()" class="btn-ui btn-square-custom hover:bg-slate-50">
+                    <i class="fa-solid fa-trash-can text-slate-500 text-sm"></i>
+                    <span class="btn-label">全消去</span>
+                </button>
+                <button id="btn-tool-laser" onclick="setTool('laser')" class="btn-ui btn-square-custom">
+                    <i class="fa-solid fa-bullseye text-red-600 text-sm"></i>
+                    <span class="btn-label text-red-600 btn-label-sm">レーザー</span>
+                </button>
+            </div>
+
+            <!-- 行4: 「はじめから」「１つもどす」（横長ボタン） -->
+            <div class="flex gap-2 btn-group-width items-center">
+                <button onclick="handleReset()" class="btn-ui flex-1 btn-h-custom hover:bg-rose-50">
+                    <i class="fa-solid fa-rotate-left text-rose-600 text-sm stroke-[2.5px]"></i>
+                    <span class="btn-label">はじめから</span>
+                </button>
+                <button onclick="handleUndo()" class="btn-ui flex-1 btn-h-custom hover:bg-amber-50">
+                    <i class="fa-solid fa-arrow-rotate-left text-amber-600 text-sm stroke-[2.5px]"></i>
+                    <span class="btn-label">１つもどす</span>
+                </button>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        // 色定義（複数色用 10色順序）
+        const SINGLE_COLOR = '#ff8fa3';
+        const MULTI_COLORS = [
+            '#FF0000', // 1. 赤
+            '#FFCCFF', // 2. 桃
+            '#FF9900', // 3. 橙
+            '#FFFF00', // 4. 黄
+            '#99FF33', // 5. 黄緑
+            '#00B050', // 6. 緑
+            '#3333FF', // 7. 青
+            '#00FFFF', // 8. 水色
+            '#CC66FF', // 9. 紫
+            '#B2B2B2'  // 10. 灰色
+        ];
+
+        // パネル状態データ
+        let panelStates = Array.from({ length: 100 }, () => ({
+            isHidden: false,
+            color: SINGLE_COLOR
+        }));
+
+        let colorMode = 'single'; // 'single' | 'multi'
+        let multiTapCount = 0;   // 複数色モードでのタップ累計
+        let currentTool = 'panel'; // 'panel' | 'pen-black' | 'pen-red' | 'pen-blue' | 'eraser' | 'laser'
+        let previousPanelMode = 'single'; // 直前のパネルモード保持
+
+        // 描画・レーザー用変数
+        let isInteracting = false;
+        let startPoint = { x: 0, y: 0, clientX: 0, clientY: 0 };
+        let hasMoved = false;
+        let laserPaths = []; // [{ points: [{x, y}], startTime: timestamp }]
+
+        // Undo履歴
+        let historyStack = [];
+
+        // DOM参照
+        const grid100 = document.getElementById('grid-100');
+        const canvas = document.getElementById('paint-canvas');
+        const ctx = canvas.getContext('2d');
+        const boardContainer = document.getElementById('board-container');
+
+        // オフスクリーンキャンバス（ペン・消しゴム描画を保持し、レーザー描画と分離）
+        const penCanvas = document.createElement('canvas');
+        const penCtx = penCanvas.getContext('2d');
+
+        // カバーシート（下からスワイプ）用変数
+        const coverSheet = document.getElementById('cover-sheet');
+        let isSheetDragging = false;
+        let sheetStartY = 0;
+        let sheetCurrentTranslateY = 0; // px
+        let sheetMaxTranslateY = 0; // 完全格納時 (containerHeight - handleHeight)
+
+        window.onload = () => {
+            create100Grid();
+            resizeCanvas();
+            initCoverSheet();
+            setupEventListeners();
+            updateToolUI();
+            requestAnimationFrame(animateLaser);
+        };
+
+        window.onresize = () => {
+            resizeCanvas();
+            initCoverSheet();
+        };
+
+        // カバーシートの初期化 & サイズ更新
+        function initCoverSheet() {
+            const containerHeight = boardContainer.clientHeight;
+            const handleHeight = 11; // ハンドル部分の高さ
+            sheetMaxTranslateY = containerHeight - handleHeight;
+            sheetCurrentTranslateY = sheetMaxTranslateY;
+            coverSheet.style.transition = 'none';
+            coverSheet.style.transform = `translateY(${sheetCurrentTranslateY}px)`;
+        }
+
+        // 100のマスを生成 (背景色: #FEFEF4)
+        function create100Grid() {
+            grid100.innerHTML = '';
+            for (let i = 1; i <= 100; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'grid-cell';
+                cell.dataset.index = i - 1;
+
+                const num = document.createElement('span');
+                num.className = 'grid-cell-number text-xl sm:text-3xl md:text-4xl font-extrabold';
+                num.textContent = i;
+                cell.appendChild(num);
+
+                const cover = document.createElement('div');
+                cover.id = `cover-${i - 1}`;
+                cover.className = 'cell-cover';
+                cell.appendChild(cover);
+
+                grid100.appendChild(cell);
+            }
+        }
+
+        // キャンバスリサイズ (オフスクリーンキャンバスも同期)
+        function resizeCanvas() {
+            const rect = boardContainer.getBoundingClientRect();
+            
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = penCanvas.width;
+            tempCanvas.height = penCanvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            if (penCanvas.width > 0 && penCanvas.height > 0) {
+                tempCtx.drawImage(penCanvas, 0, 0);
+            }
+
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            penCanvas.width = rect.width;
+            penCanvas.height = rect.height;
+
+            if (tempCanvas.width > 0 && tempCanvas.height > 0) {
+                penCtx.drawImage(tempCanvas, 0, 0, penCanvas.width, penCanvas.height);
+            }
+        }
+
+        // ツール選択・切り替え
+        function setTool(tool) {
+            currentTool = tool;
+            updateToolUI();
+        }
+
+        // モード切り替え
+        function setPanelColorMode(mode) {
+            colorMode = mode;
+            currentTool = 'panel'; // ペン等のツールを解除してパネルモードにする
+            updateToolUI();
+        }
+
+        // ツール表示の更新
+        function updateToolUI() {
+            const toolButtons = {
+                'pen-black': document.getElementById('btn-pen-black'),
+                'pen-red': document.getElementById('btn-pen-red'),
+                'pen-blue': document.getElementById('btn-pen-blue'),
+                'eraser': document.getElementById('btn-tool-eraser'),
+                'laser': document.getElementById('btn-tool-laser')
+            };
+
+            Object.keys(toolButtons).forEach(key => {
+                if (toolButtons[key]) {
+                    toolButtons[key].classList.toggle('active-tool', currentTool === key);
+                }
+            });
+
+            const isPanelMode = (currentTool === 'panel');
+            const singleBtn = document.getElementById('btn-mode-single');
+            const multiBtn = document.getElementById('btn-mode-multi');
+
+            if (singleBtn) {
+                singleBtn.classList.toggle('active-tool', isPanelMode && colorMode === 'single');
+            }
+            if (multiBtn) {
+                multiBtn.classList.toggle('active-tool', isPanelMode && colorMode === 'multi');
+            }
+        }
+
+        // 状態保存
+        function saveToHistory() {
+            if (historyStack.length >= 20) {
+                historyStack.shift();
+            }
+            const penSnapshot = penCtx.getImageData(0, 0, penCanvas.width, penCanvas.height);
+            historyStack.push({
+                panelStates: JSON.parse(JSON.stringify(panelStates)),
+                multiTapCount: multiTapCount,
+                penSnapshot: penSnapshot
+            });
+        }
+
+        // マス（パネル）の表示切り替え
+        function togglePanel(index) {
+            saveToHistory();
+            const cell = panelStates[index];
+            cell.isHidden = !cell.isHidden;
+
+            if (colorMode === 'single') {
+                cell.color = SINGLE_COLOR;
+            } else {
+                const rowIndex = Math.floor(index / 10);
+                cell.color = MULTI_COLORS[rowIndex % MULTI_COLORS.length];
+            }
+            renderPanels();
+        }
+
+        // パネル描画の更新
+        function renderPanels() {
+            panelStates.forEach((state, index) => {
+                const cover = document.getElementById(`cover-${index}`);
+                if (!cover) return;
+                if (state.isHidden) {
+                    cover.classList.add('is-hidden');
+                    cover.style.backgroundColor = state.color;
+                } else {
+                    cover.classList.remove('is-hidden');
+                    cover.style.backgroundColor = 'transparent';
+                }
+            });
+        }
+
+        // １つもどす
+        function handleUndo() {
+            if (historyStack.length === 0) return;
+            const previous = historyStack.pop();
+            panelStates = previous.panelStates;
+            multiTapCount = previous.multiTapCount;
+            if (previous.penSnapshot) {
+                penCtx.putImageData(previous.penSnapshot, 0, 0);
+            }
+            renderPanels();
+        }
+
+        // はじめから
+        function handleReset() {
+            saveToHistory();
+            panelStates = Array.from({ length: 100 }, () => ({
+                isHidden: false,
+                color: SINGLE_COLOR
+            }));
+            multiTapCount = 0;
+            penCtx.clearRect(0, 0, penCanvas.width, penCanvas.height);
+            laserPaths = [];
+            initCoverSheet();
+            renderPanels();
+        }
+
+        // キャンバス全消去
+        function handleClearCanvas() {
+            saveToHistory();
+            penCtx.clearRect(0, 0, penCanvas.width, penCanvas.height);
+        }
+
+        // イベントリスナーの登録
+        function setupEventListeners() {
+            let currentLaserPath = null;
+
+            function getCanvasPos(e) {
+                const rect = canvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return {
+                    x: clientX - rect.left,
+                    y: clientY - rect.top,
+                    clientX: clientX,
+                    clientY: clientY
+                };
+            }
+
+            function getCellIndexFromPoint(clientX, clientY) {
+                const cells = document.querySelectorAll('.grid-cell');
+                for (let i = 0; i < cells.length; i++) {
+                    const rect = cells[i].getBoundingClientRect();
+                    if (clientX >= rect.left && clientX <= rect.right &&
+                        clientY >= rect.top && clientY <= rect.bottom) {
+                        return i;
+                    }
+                }
+                return -1;
+            }
+
+            const handlePointerDown = (e) => {
+                isInteracting = true;
+                hasMoved = false;
+                const pos = getCanvasPos(e);
+                startPoint = pos;
+
+                if (currentTool.startsWith('pen') || currentTool === 'eraser') {
+                    saveToHistory();
+                    penCtx.beginPath();
+                    penCtx.moveTo(pos.x, pos.y);
+                    configurePenStyle();
+                } else if (currentTool === 'laser') {
+                    currentLaserPath = { points: [{ x: pos.x, y: pos.y }], startTime: Date.now() };
+                    laserPaths.push(currentLaserPath);
+                }
+            };
+
+            const handlePointerMove = (e) => {
+                if (!isInteracting) return;
+                const pos = getCanvasPos(e);
+                const dist = Math.hypot(pos.x - startPoint.x, pos.y - startPoint.y);
+                if (dist > 5) hasMoved = true;
+
+                if (currentTool.startsWith('pen') || currentTool === 'eraser') {
+                    penCtx.lineTo(pos.x, pos.y);
+                    penCtx.stroke();
+                } else if (currentTool === 'laser' && currentLaserPath) {
+                    currentLaserPath.points.push({ x: pos.x, y: pos.y });
+                }
+            };
+
+            const handlePointerUp = (e) => {
+                if (!isInteracting) return;
+                isInteracting = false;
+
+                const endPos = e.changedTouches ? {
+                    clientX: e.changedTouches[0].clientX,
+                    clientY: e.changedTouches[0].clientY
+                } : { clientX: e.clientX, clientY: e.clientY };
+
+                const dist = Math.hypot(endPos.clientX - startPoint.clientX, endPos.clientY - startPoint.clientY);
+
+                if (!hasMoved || dist <= 10) {
+                    if (currentTool === 'panel') {
+                        const index = getCellIndexFromPoint(startPoint.clientX, startPoint.clientY);
+                        if (index !== -1) {
+                            togglePanel(index);
+                        }
+                    }
+                }
+                currentLaserPath = null;
+            };
+
+            function configurePenStyle() {
+                if (currentTool === 'pen-black') {
+                    penCtx.globalCompositeOperation = 'source-over';
+                    penCtx.strokeStyle = '#1e293b';
+                    penCtx.lineWidth = 3;
+                    penCtx.lineCap = 'round';
+                    penCtx.lineJoin = 'round';
+                } else if (currentTool === 'pen-red') {
+                    penCtx.globalCompositeOperation = 'source-over';
+                    penCtx.strokeStyle = '#ef4444';
+                    penCtx.lineWidth = 3;
+                    penCtx.lineCap = 'round';
+                    penCtx.lineJoin = 'round';
+                } else if (currentTool === 'pen-blue') {
+                    penCtx.globalCompositeOperation = 'source-over';
+                    penCtx.strokeStyle = '#3b82f6';
+                    penCtx.lineWidth = 3;
+                    penCtx.lineCap = 'round';
+                    penCtx.lineJoin = 'round';
+                } else if (currentTool === 'eraser') {
+                    penCtx.globalCompositeOperation = 'destination-out';
+                    penCtx.lineWidth = 20;
+                    penCtx.lineCap = 'round';
+                    penCtx.lineJoin = 'round';
+                }
+            }
+
+            canvas.addEventListener('mousedown', handlePointerDown);
+            canvas.addEventListener('mousemove', handlePointerMove);
+            window.addEventListener('mouseup', handlePointerUp);
+
+            canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handlePointerDown(e); }, { passive: false });
+            canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handlePointerMove(e); }, { passive: false });
+            window.addEventListener('touchend', handlePointerUp);
+
+            // Cover Sheet drag handlers
+            const sheetHandle = document.getElementById('sheet-handle');
+            const handleSheetStart = (e) => {
+                isSheetDragging = true;
+                sheetStartY = e.touches ? e.touches[0].clientY : e.clientY;
+                coverSheet.style.transition = 'none';
+            };
+
+            const handleSheetMove = (e) => {
+                if (!isSheetDragging) return;
+                const currentY = e.touches ? e.touches[0].clientY : e.clientY;
+                const deltaY = currentY - sheetStartY;
+                let newY = sheetCurrentTranslateY + deltaY;
+                newY = Math.max(0, Math.min(sheetMaxTranslateY, newY));
+                coverSheet.style.transform = `translateY(${newY}px)`;
+            };
+
+            const handleSheetEnd = () => {
+                if (!isSheetDragging) return;
+                isSheetDragging = false;
+                const style = window.getComputedStyle(coverSheet);
+                const matrix = new WebKitCSSMatrix(style.transform);
+                let currentY = matrix.m42;
+
+                const handleHeight = 11;
+                const gridRect = grid100.getBoundingClientRect();
+                const containerRect = boardContainer.getBoundingClientRect();
+                
+                const gridTopInContainer = gridRect.top - containerRect.top;
+                const rowHeight = gridRect.height / 10;
+
+                // 各行の枠線（0行隠し〜10行隠し）へのスナップ候補位置
+                let snapTargets = [0];
+                for (let i = 1; i < 10; i++) {
+                    const targetY = gridTopInContainer + i * rowHeight - handleHeight;
+                    snapTargets.push(targetY);
+                }
+                snapTargets.push(sheetMaxTranslateY);
+
+                // ドラッグ終了位置に一番近い行の境界線へスナップ
+                let closestY = snapTargets[0];
+                let minDiff = Math.abs(currentY - closestY);
+
+                for (let i = 1; i < snapTargets.length; i++) {
+                    const diff = Math.abs(currentY - snapTargets[i]);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        closestY = snapTargets[i];
+                    }
+                }
+
+                sheetCurrentTranslateY = closestY;
+                coverSheet.style.transition = 'transform 0.2s ease-out';
+                coverSheet.style.transform = `translateY(${sheetCurrentTranslateY}px)`;
+            };
+
+            sheetHandle.addEventListener('mousedown', handleSheetStart);
+            window.addEventListener('mousemove', handleSheetMove);
+            window.addEventListener('mouseup', handleSheetEnd);
+
+            sheetHandle.addEventListener('touchstart', handleSheetStart, { passive: true });
+            window.addEventListener('touchmove', handleSheetMove, { passive: true });
+            window.addEventListener('touchend', handleSheetEnd);
+        }
+
+        // レーザーアニメーション & キャンバスレンダリングループ
+        function animateLaser() {
+            const now = Date.now();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. オフスクリーンペンの描画内容を反映
+            ctx.drawImage(penCanvas, 0, 0);
+
+            // 2. レーザー（2秒間でフェードアウト）を描画
+            const laserDuration = 2000;
+            laserPaths = laserPaths.filter(path => now - path.startTime < laserDuration);
+
+            laserPaths.forEach(path => {
+                if (path.points.length < 2) return;
+                const age = now - path.startTime;
+                const opacity = Math.max(0, 1 - age / laserDuration);
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(path.points[0].x, path.points[0].y);
+                for (let i = 1; i < path.points.length; i++) {
+                    ctx.lineTo(path.points[i].x, path.points[i].y);
+                }
+                ctx.strokeStyle = `rgba(239, 68, 68, ${opacity})`;
+                ctx.lineWidth = 5;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.shadowColor = `rgba(239, 68, 68, ${opacity})`;
+                ctx.shadowBlur = 8;
+                ctx.stroke();
+                ctx.restore();
+            });
+
+            requestAnimationFrame(animateLaser);
+        }
+    </script>
+</body>
+</html>
